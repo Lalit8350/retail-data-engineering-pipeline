@@ -1,0 +1,17 @@
+# Python virtual environment
+.venv/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# Local datasets
+data/raw/
+data/processed/
+
+# Environment variables and secrets
+.env
+.env.*
+
+# Keep an example configuration if needed
+!.env.example
