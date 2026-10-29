@@ -1,12 +1,29 @@
 
 import os
 from pathlib import Path
+import logging
+from datetime import datetime
 
 import pandas as pd
 import psycopg
 from dotenv import load_dotenv
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+LOG_DIR = PROJECT_ROOT / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+
+LOG_FILE = LOG_DIR / "pipeline.log"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    handlers=[
+        logging.FileHandler(LOG_FILE, encoding="utf-8"),
+        logging.StreamHandler(),
+    ],
+)
+
+logger = logging.getLogger(__name__)
 load_dotenv(PROJECT_ROOT / ".env")
 
 CSV_PATH = PROJECT_ROOT / "data" / "processed" / "retail_cleaned.csv"
@@ -32,8 +49,11 @@ COLUMNS = [
 def main():
     if not CSV_PATH.exists():
         raise FileNotFoundError(f"Cleaned CSV not found: {CSV_PATH}")
-
+    logger.info("Pipeline started.")
+    logger.info("Reading cleaned CSV: %s", CSV_PATH)
     df = pd.read_csv(CSV_PATH)
+    logger.info("CSV loaded successfully. Rows: %s", f"{len(df):,}")
+
 
   # Map CSV column names to PostgreSQL column names.
     COLUMN_MAPPING = {
@@ -151,8 +171,16 @@ def main():
         # The transaction commits automatically if the block succeeds.
         # If an exception occurs, psycopg rolls it back.
 
-    print(f"Load successful: {final_rows:,} rows loaded into PostgreSQL.")
+    logger.info(
+        "Load successful: %s rows loaded into PostgreSQL.",
+        f"{final_rows:,}",
+    )
+    logger.info("Pipeline completed successfully.")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        logger.exception("Pipeline failed.")
+        raise

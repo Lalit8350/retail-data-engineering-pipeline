@@ -15,3 +15,6 @@ data/processed/
 
 # Keep an example configuration if needed
 !.env.example
+
+# Pipeline logs
+logs/
