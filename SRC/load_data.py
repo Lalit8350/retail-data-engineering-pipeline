@@ -2,7 +2,6 @@
 import os
 from pathlib import Path
 import logging
-from datetime import datetime
 
 import pandas as pd
 import psycopg
@@ -86,7 +85,7 @@ def main():
     df = df[COLUMNS]
 
     expected_rows = len(df)
-    print(f"CSV rows: {expected_rows:,}")
+    logger.info("CSV rows: %s", f"{expected_rows:,}")
 
     # Convert pandas missing values to Python None for PostgreSQL.
     df = df.astype(object).where(pd.notna(df), None)
@@ -138,6 +137,41 @@ def main():
                     f"Row-count mismatch: expected {expected_rows}, "
                     f"staged {staged_rows}"
                 )
+            # Check for exact duplicate records in staging.
+            cur.execute("""
+                SELECT COALESCE(SUM(duplicate_count - 1), 0)
+                FROM (
+                    SELECT COUNT(*) AS duplicate_count
+                    FROM retail_transactions_staging
+                    GROUP BY
+                        invoice_no,
+                        stock_code,
+                        description,
+                        quantity,
+                        invoice_date,
+                        unit_price,
+                        customer_id,
+                        country,
+                        is_cancellation,
+                        has_missing_customer_id,
+                        has_missing_description,
+                        has_non_positive_quantity,
+                        has_non_positive_unit_price,
+                        line_amount
+                    HAVING COUNT(*) > 1
+                ) AS duplicate_groups;
+            """)
+
+            duplicate_rows = cur.fetchone()[0]
+
+            if duplicate_rows > 0:
+                raise ValueError(
+                    f"Data-quality check failed: "
+                    f"{duplicate_rows:,} duplicate rows found."
+                )
+
+            logger.info("Data-quality check passed: no exact duplicate rows.")
+
 
             # Replace the target only after the staging count passes.
             cur.execute("DELETE FROM public.retail_transactions")
